@@ -1,0 +1,404 @@
+Nobel Winners
+================
+Amy Wang
+
+4/27/2022
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+library(cowplot)
+library(waffle)
+library(echarts4r)
+```
+
+
+```{r}
+nobel_winners <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-14/nobel_winners.csv") %>%
+  distinct(full_name, prize_year, category, .keep_all = TRUE) %>%
+  mutate(decade = 10 * (prize_year %/% 10),
+         age = prize_year - year(birth_date))
+```
+
+#  Introduction
+
+The Nobel Prize is perhaps the worlds most well known scientific award. Except for the honor, prestige and substantial prize money the recipient also gets a gold medal showing Alfred Nobel (1833 - 1896) who established the prize. Every year it’s given to scientists and scholars in the categories chemistry, literature, physics, physiology or medicine, economics, and peace. ^[https://en.wikipedia.org/wiki/Nobel_Prize] The first Nobel Prize was handed out in 1901, and at that time the Prize was very Eurocentric and male-focused, but nowadays it’s not biased. There are some years when the Nobel Prizes have not been awarded. Most of them during World War I (1914-1918) and II (1939-1945).
+^[https://www.nobelprize.org/prizes/lists/all-nobel-prizes/]
+
+
+A person or organization awarded the Nobel Prize is called Nobel Laureate. The word "laureate" refers to being signified by the laurel wreath. In ancient Greece, laurel wreaths were awarded to victors as a sign of honor.
+
+Since the Nobel Prize was established in 1901, 911 laureates or organisations were granted with the prestigious award. They are distributed in 6 categories: chemistry, economics, literature, medicine, peace, physics. In this analysis, we are exploring data from Nobel Laureate Publications from 1901. The data set was obtained from TidyTuesday, which includes records for every individual or organization that was awarded the Nobel Prize since 1901.
+
+In this project, I want to explore more about Nobel laureates and try to answer these questions:
+
+1. Are there gender and age differences or patterns for all Nobel Prize winners?
+
+2. What is the geographical distribution of all Nobel Prize winners?
+
+#  Gender Distribution over Various diciplines
+
+### Gender
+
+The distribution of Nobel laureates by gender reveals a significant and wide disparity in the awarding of the prize. Furthermore, there are almost 17 times more male Nobel laureates (836 to 49) than female Nobel laureates throughout Nobel Prize history.
+
+Although there has been a gradual rise in women's representation, particularly since the early 1990s, there is still room for growth. And the rise of women among Nobel laureates has not been evenly distributed.
+
+```{r message=FALSE, warning=FALSE}
+waffle(table(nobel_winners$gender), rows=10, size=0.6, col=c("#9b5de5","#00bbf9"), title = 'Total number of Male - Female laureates')
+
+nobel_winners$gen_org <- if_else(nobel_winners$gender == 'Male', "Male", "Female", "Organization")
+nobel_winners$gen_org <- factor(nobel_winners$gen_org, levels = c("Male", "Female", "Organization"))
+
+                    
+ggplot(nobel_winners, aes(x = prize_year, fill = gen_org)) +
+    geom_dotplot(stackgroups = TRUE, binwidth = 1, method = "histodot", col = 'white')+
+    labs(title = 'Total Number of laureates in each year', x = '', y = '', fill = '') +
+    scale_x_continuous(limits = c(1899, 2021), breaks = seq(1900, 2020, 8), expand = c(0, 0)) + 
+    scale_y_continuous(NULL, breaks = NULL) + 
+    coord_fixed(ratio = 15)+
+  scale_fill_manual(values = c("#00bbf9","#9b5de5","#ffa62b"))+
+   theme(plot.title = element_text(size=18),
+        axis.title = element_text(size=14),  
+        axis.text = element_text(color="#0085C7", size = 10))+
+  theme_bw()
+
+
+```
+
+### Categories
+
+The Nobel Prize is widely regarded as the most prestigious award available in the fields of literature, medicine, physics, chemistry, economics and activism for peace. Economics category has only 83 laureates, because economics field was established since 1969. 
+
+As shown in the graph, the highest number of laureates in medicine and physics comes from the fact they comprehend the highest number of Nobel Prizes shared between 2 or 3 laureates.
+^[https://www.nobelprize.org/prizes/facts/nobel-prize-facts/]
+
+
+```{r}
+cat_n <- nobel_winners %>% 
+  count(category, sort = TRUE)
+
+options(repr.plot.width = 10, repr.plot.height = 5)
+
+ggplot(cat_n, aes(x = reorder(category, n), y = n, fill = category)) +
+  geom_col() + 
+  labs(title = 'Total Number of Nobel Laureates', 
+       x = '', 
+       y = '') +
+  geom_text(aes(label=n), hjust = 1.2, color = "white", size = 5, fontface = "bold") + 
+  coord_flip() +
+  theme(legend.position = "none")+
+  theme(plot.title = element_text(size=18),
+        axis.title = element_text(size=14),  
+        axis.text = element_text(color="#0085C7", size = 10))
+
+```
+
+### Overall 
+
+```{r message=FALSE, warning=FALSE}
+
+nobel_winners %>%
+  count(decade,
+        category,
+        gender = coalesce(gender, laureate_type)) %>%
+  group_by(decade, category) %>%
+  mutate(percent = n / sum(n)) %>%
+  ggplot(aes(decade, n, fill = gender)) +
+  geom_col() +
+  facet_wrap(~ category) +
+  labs(x = "Decade",
+       y = "Number of nobel prize winners",
+       fill = "Gender",
+       title = "Nobel Prize gender distribution over time")+ theme_classic()
+
+
+mfo_n <- nobel_winners %>%
+    drop_na(gen_org) %>%
+    group_by(category, gen_org) %>%
+    mutate(category = factor(category, levels = rev(cat_n$category))) %>%
+    summarize(n = n())
+
+ggplot(mfo_n, aes(x = category, y = n, fill = gen_org)) +
+    geom_col() + 
+    labs(title = 'Male - Female - Organizations amoung laureates', x = '', y = '', fill = ' ') +
+    geom_text(aes(label=n), position = position_stack(vjust = .5), color = "white", size = 5, fontface = "bold") + 
+    coord_flip() + 
+    scale_fill_manual(values = c("#00bbf9", "#9b5de5","#ffa62b"))+theme_classic()
+
+```
+
+The rise of women among Nobel Laureates has not been evenly distributed. The increase of female Nobel laureates has primarily occurred in the fields of medicine, literature, and peace. Only 4 women have won the Nobel Prize in chemistry, 1 in economics (**Professor E. Ostrom** in 2009), and 2 in physics (**M. Curie** in 1903 and **M. Goeppert Mayer** in 1963), compared to 12 for medicine, 16 for peace, and 14 for literature since 1901.
+
+Why is there a hige gap between female and male to win Nobel Prize, especially in STEM field?
+
+Strikingly few Nobel laureates within medicine, natural and social sciences are women. Because historically, women have held fewer positions in academia than males, it is logical to expect more male Nobel laureates than female Nobel laureates. Over the last few decades, however, the proportion of women in scientific professions has risen in all sectors of science.Despite this fundamental shift in demography, the proportion of female Nobel laureates remains low, giving the appearance that the gender gap is widening. One study in *Nature* found that the gender distribution in Nobel Prizes includes a bias against women with more than ~96% probability. Hence, even women that resist the leaky pipeline and become permanent staff members do not have equal chances to be awarded the Nobel Prize. The possible origin relies on previous stages of the professional career that lead to a lower chance of women to be nominated.^[Lunnemann, P., Jensen, M.H. & Jauffred, L. Gender bias in Nobel prizes. Palgrave Commun 5, 46 (2019). https://doi.org/10.1057/s41599-019-0256-3] 
+
+A European study from 2015 gives us some numbers. In Belgium, in 2010, 41% of STEM Ph.D.s were women, while the percentage of university professors was three times lower than per percentage of men.^[http://garciaproject.eu/wp-content/uploads/2015/11/GARCIA_report_wp5D.pdf] More data: in 2011, 64% of women who had won Nobel Prizes were married compared to 97% of men; 55% of them had children compared to 86% of them.^[Charyton, C., Elliott, J. O., Rahman, M. A., Woodard, J. L., & DeDios, S. (2011). Gender and science: Women Nobel laureates. The Journal of creative behavior, 45(3), 203-214.] Additionally, these numbers suggest that women, in general, tend to assume more family responsibilities, being a possible explanation for their lower rate of publication of scientific articles compared to men. 
+
+Although Nobel committees can only decide whether to award or not nominees that have been submitted to their attention by nominators, we should as a community provide more respect and recognition to female scientists. Furthermore, organizations and society as a whole should encourage more women to pursue STEM careers by providing them with greater resources, opportunities and support.
+
+# Age 
+
+Both median and average age of the laureates overall are close to 60 (mean: 59.45, median: 60.00), and the median point in each Nobel category is higher or equal to 50 years old. For all the Nobel categories, Medicine, Chemistry and Physics Nobel Prize laureates tend to be younger than Literature, Economics and Peace Nobel Prize laureates. We can conclude that the ages for each Nobel Prize category are normally distributed.
+ 
+```{r message=FALSE, warning=FALSE}
+
+nobel_winners %>%
+  mutate(category = fct_reorder(category, age, median, na.rm = TRUE)) %>%
+  ggplot(aes(category, age, fill= category)) +
+  geom_boxplot() +
+  coord_flip()+
+  labs(x = "Nobel Prize Category",
+       y = "Age",
+       title = "Boxplot of age Nobel Prize Category")+
+  theme(plot.title = element_text(face="bold", size=18),
+        axis.title = element_text(size=14),  
+        axis.text = element_text(size = 10))+
+  geom_hline(yintercept = 59.45)+  #mean age forall winner
+  theme_bw()
+
+ggplot(nobel_winners, aes(x = age))+
+  geom_histogram()+
+  facet_wrap(~category)+
+  theme_bw()+
+  labs(x = "Nobel Prize Category",
+       y = "Age",
+       title = "Histogram of age by Nobel Prize Category")+
+  theme(plot.title = element_text(face="bold", size=18),
+        axis.title = element_text(size=14),  
+        axis.text = element_text(size = 10))
+
+
+summary(nobel_winners$age)
+```
+```{r}
+
+nobel_winners$laureate_or_org = if_else(is.na(nobel_winners$full_name), "Organization", "Individual")
+nobel_winners$laureate_or_org = factor(nobel_winners$laureate_or_org, levels = c("Individual", "Organization"))
+
+df <- nobel_winners %>%
+        mutate(awardDate = as.Date(ISOdate(prize_year, 10, 01)), 
+               age_days = awardDate - birth_date,
+               age_years = round(interval(birth_date, awardDate) / years(1)), 
+               life_span_days = death_date - birth_date, 
+               life_span_years = round(interval(birth_date, death_date) / years(1)), 
+               is_alive = laureate_or_org == 'Laureate' & is.na(death_date))
+
+age_data <- df %>% 
+    drop_na(age_years) %>%
+    select(prize_year, category, gender, age_days, age_years, full_name)
+
+age_stats <- df %>%
+    drop_na(age_years) %>%
+    group_by(category) %>%
+    summarize(mean_age = mean(age_years), 
+              median_age = median(age_years))
+
+options(repr.plot.width = 18, repr.plot.height = 9)
+
+ggplot(age_data, aes(x = prize_year, y = age_years)) +
+    geom_point(color = "#6BBF78",size = 3, alpha= 0.5) +
+    geom_smooth(formula = y ~ x, method = 'loess', se = FALSE, size = 2) +
+    labs(x = "Year",
+         y = "Age",
+         title = 'Age of Nobel Laureates over the years') +
+    theme(legend.position='right', legend.justification = "top",
+         plot.title = element_text(face="bold", size=16),
+         axis.title = element_text(size=14),
+         axis.text = element_text(size = 10))
+```
+
+The trend of age by Nobel category over time shows an increase in the age the Nobel Prize is awarded. 
+
+### Age differences in Nobel categories
+
+Now, we wonder if there are significant age differences between Nobel laureates in different categories?
+
+To test this question, an ANOVA test was conducted to test for age differences between Nobel Prize categories.
+
+First, we check all the assumptions of ANOVA test:
+
+1. Each Nobel Prize category is separate.
+
+2. Each Nobel Prize category has a normal population distribution (from "Age Histogram by Nobel Prize Category")
+
+3. These distributions have the same variance (from "Boxplot of age Nobel Prize Category")
+
+```{r}
+model <- aov(age~category,data = nobel_winners)
+summary(model)
+```
+
+The result of the ANOVA test shows that the p-value is significantly small. Therefore, we conclude that there are significant differences in ages between different Nobel categories.
+
+### "The most"s
+
+```{r}
+
+oldest <- df %>%
+    select(full_name, category, age_days, age_years) %>%
+    arrange(desc(age_days))
+
+ggplot(head(oldest, 15), aes(reorder(full_name, age_days), age_years, fill = category)) +
+  geom_col() +
+  labs(title = 'The Oldest Nobel Laureates', x = '', y = '', fill = 'Category') +  
+  geom_text(aes(label = age_years), hjust = 1.2, colour = "white", size = 5, fontface = "bold") +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20), expand = c(0, 0)) + 
+  coord_flip() +    
+  scale_fill_manual(values = c("#6BBFBF","#C2CB6C", "#F2AA52", "#D9665B", "#E78E84", "#8575BF")) +
+  theme(legend.position='right', legend.justification = "top")+
+  theme_bw()+
+  theme(legend.position='right', legend.justification = "top",
+         plot.title = element_text(face="bold", size=16),
+         axis.title = element_text(size=14),
+         axis.text = element_text(size = 10))
+youngest <- df %>%
+    select(full_name, category, age_days, age_years) %>%
+    arrange(age_days)
+
+
+ggplot(head(youngest, 15), aes(reorder(full_name, desc(age_days)), age_years, fill = category)) +
+  geom_col() +
+  labs(title = 'The Youngest Nobel Laureates', x = '', y = '', fill = 'Category') +      
+  geom_text(aes(label = age_years), hjust = 1.2, colour = "white", size = 5, fontface = "bold") +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20), expand = c(0, 0)) +     
+  coord_flip() +
+  theme_bw()+
+  scale_fill_manual(values = c("#4B89BF","#73B2D9", "#F2B544")) +
+  theme(legend.position='right', legend.justification = "top",
+         plot.title = element_text(face="bold", size=16),
+         axis.title = element_text(size=14),
+         axis.text = element_text(size = 10))
+```
+
+- The oldest Nobel Laureate: **Leonid Hurwicz**: a Polish-American economist and mathematician, known for his work in game theory and mechanism design. He shared the 2007 Nobel Memorial Prize in Economic Sciences (with Eric Maskin and Roger Myerson) for his seminal work on mechanism design. ^[https://en.wikipedia.org/wiki/Leonid_Hurwicz] ^[https://www.nobelprize.org/prizes/economic-sciences/2007/hurwicz/facts/]
+
+- The youngest Nobel Laureate: **Malala Yousafzai**: a Pakistani activist for female education and a Nobel Peace Prize laureate. She is known for human rights advocacy, especially the education of women and children in her native Swat Valley in Khyber Pakhtunkhwa, northwest Pakistan, where the Tehrik-i-Taliban Pakistan had at times banned girls from attending school. Her advocacy has grown into an international movement, and according to former Pakistani Prime Minister Shahid Khaqan Abbasi, she has become the country's "most prominent citizen". ^[https://en.wikipedia.org/wiki/Malala_Yousafzai] ^[https://www.nobelprize.org/prizes/peace/2014/yousafzai/facts/]
+
+# Geographical distribution
+
+```{r}
+country_count <- nobel_winners %>%
+  select(birth_country) %>%
+  drop_na(birth_country) %>% 
+  group_by(birth_country) %>% 
+  rename(region = birth_country) %>% 
+  mutate(region = recode_factor(region, 
+                                'Scotland' = 'UK',
+                                'United States of America' = 'United States',
+                                'Northern Ireland' = 'Ireland',
+                                'Czechoslovakia (Czech Republic)'= 'Czech Rep.',
+                                'Austria-Hungary (Czech Republic)' = 'Czech Rep.',
+                                'Prussia (Germany)'= 'Germany',
+                                'West Germany (Germany)'= 'Germany',
+                                'Schleswig (Germany)'= 'Germany', 
+                                'Bavaria (Germany)' = 'Germany',
+                                'East Friesland (Germany)' = 'Germany',
+                                'Mecklenburg (Germany)' = 'Germany',
+                                'Germany (Poland)' = 'Poland',
+                                'British Mandate of Palestine (Israel)' = 'Israel',
+                                'Prussia (Poland)' = 'Poland',
+                                'Russian Empire (Poland)' = 'Poland',
+                                'Union of Soviet Socialist Republics (Russia)'= 'Russia',
+                                'Austria-Hungary (Hungary)' = 'Hungary',
+                                'Germany (France)' = 'France',
+                                'Russian Empire (Finland)' = 'Finland',
+                                'Austrian Empire (Austria)' = 'Austria',
+                                'French Algeria (Algeria)' = 'Algeria',
+                                'Germany (Russia)' = 'Russia',
+                                'Korea (South Korea)' = 'South Korea',
+                                'Russian Empire (Belarus)' = 'Belarus',
+                                'Russian Empire (Russia)' = 'Russia',
+                                'Russian Empire (Ukraine)' = 'Ukraine',
+                                'Austria-Hungary (Austria)' = 'Austria',
+                                'Austria-Hungary (Bosnia and Herzegovina)' = 'Bosnia and Herz',
+                                'Austria-Hungary (Croatia)' = 'Croatia',
+                                'Austria-Hungary (Poland)' = 'Poland',
+                                'Austria-Hungary (Slovenia)' = 'Slovenia',
+                                'Austria-Hungary (Ukraine)' = 'Ukraine',
+                                'Austrian Empire (Czech Republic)' = 'Czech Rep.',
+                                'Austrian Empire (Italy)' = 'Italy',
+                                'Bosnia (Bosnia and Herzegovina)' = 'Bosnia and Herz',
+                                'British India (Bangladesh)' = 'Bangladesh',
+                                'British India (India)' = 'India',
+                                'British Protectorate of Palestine (Israel)' = 'Israel',
+                                'British West Indies (Saint Lucia)' = 'Saint Lucia',
+                                'Burma (Myanmar)' = 'Myanmar',
+                                'Faroe Islands (Denmark)' = 'Denmark',
+                                'Crete (Greece)' = 'Greece',
+                                'Free City of Danzig (Poland)' = 'Poland',
+                                'German-occupied Poland (Poland)' = 'Poland',
+                                'Gold Coast (Ghana)' = 'Ghana',
+                                'Hungary (Slovakia)' = 'Slovakia',
+                                'Java, Dutch East Indies (Indonesia)' = 'Indonesia',
+                                'Ottoman Empire (Republic of Macedonia)' = 'Macedonia',
+                                'Ottoman Empire (Turkey)' = 'Turkey',
+                                'Persia (Iran)' = 'Iran',
+                                'Poland (Belarus)' = 'Belarus',
+                                'India (Pakistan)' = 'Pakistan',
+                                'Poland (Lithuania)' = 'Lithuania',
+                                'Poland (Ukraine)' = 'Ukraine',
+                                'Prussia (Russia)' = 'Russia',
+                                'Russian Empire (Azerbaijan)' = 'Azerbaijan',
+                                'Russian Empire (Latvia)' = 'Latvia',
+                                'Russian Empire (Lithuania)' = 'Lithuania',
+                                'Southern Rhodesia (Zimbabwe)' = 'Zimbabwe',
+                                "Tibet (People's Republic of China)" = "China",
+                                'Union of Soviet Socialist Republics (Belarus)' = 'Belarus',
+                                'W&uuml;rttemberg (Germany)' = 'Germany',
+                                'Tuscany (Italy)' = 'Italy',
+                                'Hesse-Kassel (Germany)' = 'Germany'))%>% 
+  summarize(n = n())%>% 
+  arrange (desc(n))
+```
+
+```{r}
+country_count%>%
+  e_charts(region) %>%
+  e_map(n) %>%
+  e_visual_map(min=0, 
+               max=259) %>%
+  e_title("Number of Lauretes in each country", left = "center") %>%
+  e_theme("blue")
+```
+
+The data clearly indicate the predominance of the United States in the total number of Nobel laureates. We can also see that Nobel laureates are clustered primarily in developed countries like the United States, European countries, Russia, and Japan. 
+
+```{r}
+library(usdata)
+
+us <- nobel_winners %>%
+  filter(birth_country == 'United States of America') %>%
+  select(birth_city) %>%
+  drop_na(birth_city) %>%
+  mutate(code = str_extract(birth_city, ', [A-Z][A-Z]')) %>%
+  mutate(code = str_replace(code, ', ', '')) %>%
+  group_by(code) %>%
+  rename(abbr = code) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  mutate(state = abbr2state(abbr))
+```
+
+```{r}
+usa <- jsonlite::read_json("https://raw.githubusercontent.com/shawnbot/topogram/master/data/us-states.geojson")
+
+us %>% 
+  e_charts(state) %>% 
+  e_map_register("USA", usa) %>% 
+  e_map(n, map = "USA") %>% 
+  e_visual_map(min=0, 
+               max=64) %>%
+  e_title("Number of Lauretes in each state", left = "center") %>%
+  e_theme("sakura")
+```
+
+And we can see that most Nobel laureates in US are from Now York (64), Illinois (25) and Massachusetts (22).
+
+# Conclusion 
+
+Overall, we conclude that there are gender differences in Nobel laureates. There also exists age differences between different Nobel Prize categories. Most Nobel laureates come from developed countries. One reason to explain the results could be the unequal access to resources by country, region, and gender. 
+For future research, it will also interesting to see if we can use age, gender, and nationality to predict next Nobel laureates.
